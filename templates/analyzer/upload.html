@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Analyze Resume - AI Resume Analyzer{% endblock %}
+
+{% block content %}
+<div class="page-container">
+  <div class="hero-section">
+    <h1 class="hero-title">AI-Powered Resume Analyzer</h1>
+    <p class="hero-subtitle">Upload your resume and a job description to get an intelligent match score, skill gap analysis, and personalized recommendations powered by BERT &amp; FAISS.</p>
+  </div>
+
+  <div class="upload-grid">
+    <!-- Resume Upload -->
+    <div class="card upload-card">
+      <div class="card-header">
+        <span class="card-icon">📄</span>
+        <h2>Upload Resume</h2>
+      </div>
+      <div class="drop-zone" id="resumeDropZone">
+        <div class="drop-zone-content">
+          <div class="drop-icon">⬆️</div>
+          <p><strong>Drag &amp; drop</strong> your resume here</p>
+          <p class="drop-sub">or click to browse</p>
+          <p class="drop-formats">Supports PDF, DOCX, DOC</p>
+        </div>
+        <input type="file" id="resumeFile" name="file" accept=".pdf,.docx,.doc" class="file-input">
+      </div>
+      <div id="resumePreview" class="file-preview hidden">
+        <span class="file-icon">📎</span>
+        <span id="resumeFileName"></span>
+        <button type="button" class="remove-file" onclick="clearFile('resume')">✕</button>
+      </div>
+    </div>
+
+    <!-- Job Description -->
+    <div class="card upload-card">
+      <div class="card-header">
+        <span class="card-icon">💼</span>
+        <h2>Job Description</h2>
+      </div>
+      <div class="jd-tabs">
+        <button class="tab-btn active" data-tab="paste">Paste Text</button>
+        <button class="tab-btn" data-tab="upload">Upload File</button>
+      </div>
+      <div id="tab-paste" class="tab-content active">
+        <div class="form-group">
+          <input type="text" id="jdTitle" name="title" class="form-control" placeholder="Job Title (e.g. Senior Python Developer)">
+        </div>
+        <div class="form-group">
+          <textarea id="jdText" name="text" class="form-control jd-textarea" placeholder="Paste the full job description here...&#10;&#10;Include required skills, responsibilities, and qualifications for best results."></textarea>
+          <div class="char-count"><span id="charCount">0</span> characters</div>
+        </div>
+      </div>
+      <div id="tab-upload" class="tab-content hidden">
+        <div class="drop-zone" id="jdDropZone">
+          <div class="drop-zone-content">
+            <div class="drop-icon">⬆️</div>
+            <p><strong>Drag &amp; drop</strong> job description</p>
+            <p class="drop-sub">or click to browse</p>
+            <p class="drop-formats">Supports PDF, DOCX, TXT</p>
+          </div>
+          <input type="file" id="jdFile" name="jd_file" accept=".pdf,.docx,.doc,.txt" class="file-input">
+        </div>
+        <div id="jdPreview" class="file-preview hidden">
+          <span class="file-icon">📎</span>
+          <span id="jdFileName"></span>
+          <button type="button" class="remove-file" onclick="clearFile('jd')">✕</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="analyze-section">
+    <button id="analyzeBtn" class="btn-primary btn-large" onclick="startAnalysis()">
+      <span id="btnText">Analyze Match</span>
+      <span id="btnIcon">🔍</span>
+    </button>
+    <p class="analyze-hint">Analysis takes 10-30 seconds on first run (model loading)</p>
+  </div>
+
+  <div id="errorAlert" class="alert alert-error hidden"></div>
+</div>
+
+<!-- Progress Loader — outside page-container so it overlays everything -->
+<div id="progressOverlay" class="progress-overlay">
+  <div class="progress-card">
+    <div class="progress-spinner"></div>
+    <h3 id="progressTitle">Analyzing your resume...</h3>
+    <p class="progress-subtitle">Powered by BERT &amp; FAISS</p>
+    <div class="progress-bar-container">
+      <div id="progressBar" class="progress-bar"></div>
+    </div>
+    <p id="progressStep" class="progress-step">Extracting text...</p>
+    <p id="progressPct" class="progress-pct">0%</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/upload.js' %}"></script>
+{% endblock %}

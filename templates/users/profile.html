@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}Profile - AI Resume Analyzer{% endblock %}
+
+{% block content %}
+<div class="page-container">
+  <div class="page-header">
+    <h1>My Profile</h1>
+    <p>Hello, <strong>{{ user.username }}</strong> &mdash; {{ user.email }}</p>
+  </div>
+
+  <div class="card">
+    <h2>Recent Analyses</h2>
+    {% if results %}
+      <div class="results-table-wrap">
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th>Resume</th>
+              <th>Job Title</th>
+              <th>Match Score</th>
+              <th>Date</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in results %}
+            <tr>
+              <td>{{ r.resume.original_filename }}</td>
+              <td>{{ r.job_description.title|default:"N/A" }}</td>
+              <td>
+                <span class="score-badge {% if r.match_score >= 70 %}score-high{% elif r.match_score >= 40 %}score-mid{% else %}score-low{% endif %}">
+                  {{ r.match_score }}%
+                </span>
+              </td>
+              <td>{{ r.created_at|date:"M d, Y" }}</td>
+              <td><a href="{% url 'analyzer:results' r.pk %}" class="btn-sm">View</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty-state">No analyses yet. <a href="{% url 'analyzer:upload' %}">Analyze your first resume!</a></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

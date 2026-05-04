@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}History - AI Resume Analyzer{% endblock %}
+
+{% block content %}
+<div class="page-container">
+  <div class="page-header">
+    <h1>Analysis History</h1>
+    <a href="{% url 'analyzer:upload' %}" class="btn-primary">+ New Analysis</a>
+  </div>
+
+  {% if results %}
+    <div class="history-grid">
+      {% for r in results %}
+        <div class="history-card card">
+          <div class="history-score">
+            <span class="score-badge-lg {% if r.match_score >= 70 %}score-high{% elif r.match_score >= 40 %}score-mid{% else %}score-low{% endif %}">
+              {{ r.match_score }}%
+            </span>
+          </div>
+          <div class="history-info">
+            <h3>{{ r.resume.original_filename }}</h3>
+            <p class="history-jd">{{ r.job_description.title|default:"Job Description" }}</p>
+            <p class="history-date">{{ r.created_at|date:"M d, Y H:i" }}</p>
+            <div class="history-skills">
+              <span class="skill-mini matched">{{ r.matched_skills|length }} matched</span>
+              <span class="skill-mini missing">{{ r.missing_skills|length }} missing</span>
+            </div>
+          </div>
+          <a href="{% url 'analyzer:results' r.pk %}" class="history-link">View →</a>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card empty-history">
+      <div class="empty-icon">📋</div>
+      <h2>No analyses yet</h2>
+      <p>Upload your resume and a job description to get started.</p>
+      <a href="{% url 'analyzer:upload' %}" class="btn-primary">Start Analyzing</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

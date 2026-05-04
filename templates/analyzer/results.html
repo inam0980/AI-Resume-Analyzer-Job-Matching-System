@@ -1,0 +1,319 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Match Results - AI Resume Analyzer{% endblock %}
+
+{% block content %}
+<div class="page-container">
+
+  <!-- Header -->
+  <div class="results-header">
+    <a href="{% url 'analyzer:upload' %}" class="back-link">← New Analysis</a>
+    <h1>Match Results</h1>
+    <p class="results-meta">
+      <span>📄 {{ result.resume.original_filename }}</span>
+      {% if result.job_description.title %}<span>💼 {{ result.job_description.title }}</span>{% endif %}
+      <span>🕐 {{ result.created_at|date:"M d, Y H:i" }}</span>
+    </p>
+  </div>
+
+  <!-- ── Score Hero ── -->
+  <div class="score-hero card">
+    <div class="score-circle-container">
+      <div class="score-circle" id="scoreCircle" data-score="{{ result.match_score }}">
+        <svg viewBox="0 0 200 200" class="score-svg">
+          <circle cx="100" cy="100" r="80" class="score-track"/>
+          <circle cx="100" cy="100" r="80" class="score-fill" id="scoreFill"/>
+        </svg>
+        <div class="score-text">
+          <span class="score-number" id="scoreNumber">0</span>
+          <span class="score-pct">%</span>
+          <span class="score-label">Match</span>
+        </div>
+      </div>
+    </div>
+    <div class="score-details">
+      <div class="score-stat">
+        <span class="stat-value">{{ result.matched_skills|length }}</span>
+        <span class="stat-label">Matched Skills</span>
+      </div>
+      <div class="score-stat">
+        <span class="stat-value">{{ result.missing_skills|length }}</span>
+        <span class="stat-label">Missing Skills</span>
+      </div>
+      <div class="score-stat">
+        <span class="stat-value">{{ result.critical_missing|length }}</span>
+        <span class="stat-label">Critical Gaps</span>
+      </div>
+      <div class="score-verdict">
+        {% if result.match_score >= 70 %}
+          <span class="verdict verdict-strong">Strong Match 🎯</span>
+        {% elif result.match_score >= 45 %}
+          <span class="verdict verdict-moderate">Moderate Match 📊</span>
+        {% else %}
+          <span class="verdict verdict-weak">Needs Work 📝</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Score Breakdown ── -->
+  <div class="card full-width">
+    <div class="card-header">
+      <span class="card-icon">📊</span>
+      <h2>Score Breakdown</h2>
+      <span class="badge">4-Component Analysis</span>
+    </div>
+    <p class="card-desc">Weighted composite: Semantic 40% &bull; Skills 30% &bull; Keywords 20% &bull; Experience 10%</p>
+    <div class="breakdown-grid">
+
+      <div class="breakdown-item">
+        <div class="breakdown-header">
+          <span class="breakdown-label">Semantic Match</span>
+          <span class="breakdown-score" data-score="{{ result.score_breakdown.semantic }}">{{ result.score_breakdown.semantic }}%</span>
+        </div>
+        <div class="breakdown-bar-wrap">
+          <div class="breakdown-bar bar-semantic" data-pct="{{ result.score_breakdown.semantic }}"></div>
+        </div>
+        <p class="breakdown-sub">BERT mpnet: {{ result.semantic_scores.mpnet_score }}% &bull; multi-qa: {{ result.semantic_scores.multiqa_score }}%</p>
+      </div>
+
+      <div class="breakdown-item">
+        <div class="breakdown-header">
+          <span class="breakdown-label">Skill Coverage</span>
+          <span class="breakdown-score">{{ result.score_breakdown.skills }}%</span>
+        </div>
+        <div class="breakdown-bar-wrap">
+          <div class="breakdown-bar bar-skills" data-pct="{{ result.score_breakdown.skills }}"></div>
+        </div>
+        <p class="breakdown-sub">{{ result.matched_skills|length }} of {{ result.matched_skills|length|add:result.missing_skills|length }} required skills matched</p>
+      </div>
+
+      <div class="breakdown-item">
+        <div class="breakdown-header">
+          <span class="breakdown-label">Keyword Coverage</span>
+          <span class="breakdown-score">{{ result.score_breakdown.keywords }}%</span>
+        </div>
+        <div class="breakdown-bar-wrap">
+          <div class="breakdown-bar bar-keywords" data-pct="{{ result.score_breakdown.keywords }}"></div>
+        </div>
+        <p class="breakdown-sub">TF-IDF keyword overlap with job description</p>
+      </div>
+
+      <div class="breakdown-item">
+        <div class="breakdown-header">
+          <span class="breakdown-label">Experience Level</span>
+          <span class="breakdown-score">{{ result.score_breakdown.experience }}%</span>
+        </div>
+        <div class="breakdown-bar-wrap">
+          <div class="breakdown-bar bar-experience" data-pct="{{ result.score_breakdown.experience }}"></div>
+        </div>
+        <p class="breakdown-sub">
+          Resume: <strong>{{ result.experience_analysis.resume_level|capfirst }}</strong>
+          &bull; JD expects: <strong>{{ result.experience_analysis.jd_level|capfirst }}</strong>
+          {% if result.experience_analysis.match %}✅{% else %}⚠️{% endif %}
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Section Scores ── -->
+  {% if result.section_scores %}
+  <div class="card full-width">
+    <div class="card-header">
+      <span class="card-icon">📋</span>
+      <h2>Section-by-Section Analysis</h2>
+      <span class="badge">Resume Sections vs JD</span>
+    </div>
+    <p class="card-desc">How well each section of your resume aligns with the job description:</p>
+    <div class="section-scores-grid">
+      {% for section, score in result.section_scores.items %}
+        {% if score is not None %}
+        <div class="section-score-item">
+          <div class="section-score-top">
+            <span class="section-name">{{ section|capfirst }}</span>
+            <span class="section-pct {% if score >= 60 %}text-green{% elif score >= 35 %}text-yellow{% else %}text-red{% endif %}">{{ score }}%</span>
+          </div>
+          <div class="section-bar-wrap">
+            <div class="section-bar {% if score >= 60 %}bar-good{% elif score >= 35 %}bar-ok{% else %}bar-poor{% endif %}"
+                 data-pct="{{ score }}"></div>
+          </div>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="results-grid">
+
+    <!-- Matched Skills by Group -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">✅</span>
+        <h2>Matched Skills</h2>
+        <span class="badge badge-green">{{ result.matched_skills|length }}</span>
+      </div>
+      {% if result.matched_by_group %}
+        {% for group, skills in result.matched_by_group.items %}
+          <div class="skill-group">
+            <span class="skill-group-label">{{ group|title|cut:"_" }}</span>
+            <div class="skills-list">
+              {% for skill in skills %}
+                <span class="skill-tag skill-matched">{{ skill }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      {% elif result.matched_skills %}
+        <div class="skills-list">
+          {% for skill in result.matched_skills %}
+            <span class="skill-tag skill-matched">{{ skill }}</span>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="empty-state">No common skills detected.</p>
+      {% endif %}
+    </div>
+
+    <!-- Missing Skills by Group -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">❌</span>
+        <h2>Missing Skills</h2>
+        <span class="badge badge-red">{{ result.missing_skills|length }}</span>
+      </div>
+      {% if result.critical_missing %}
+        <div class="skill-group critical-group">
+          <span class="skill-group-label critical-label">Critical Gaps</span>
+          <div class="skills-list">
+            {% for skill in result.critical_missing %}
+              <span class="skill-tag skill-critical">{{ skill }}</span>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+      {% if result.missing_by_group %}
+        {% for group, skills in result.missing_by_group.items %}
+          <div class="skill-group">
+            <span class="skill-group-label">{{ group|title|cut:"_" }}</span>
+            <div class="skills-list">
+              {% for skill in skills %}
+                {% if skill not in result.critical_missing %}
+                  <span class="skill-tag skill-missing">{{ skill }}</span>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      {% elif result.missing_skills %}
+        <div class="skills-list">
+          {% for skill in result.missing_skills %}
+            <span class="skill-tag skill-missing">{{ skill }}</span>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="empty-state success-msg">No missing skills! Great match.</p>
+      {% endif %}
+    </div>
+
+    <!-- Keyword Gap Analysis -->
+    <div class="card full-width">
+      <div class="card-header">
+        <span class="card-icon">🔑</span>
+        <h2>Keyword Gap Analysis</h2>
+        <span class="badge">TF-IDF</span>
+      </div>
+      <p class="card-desc">Top keywords from the JD and which ones are missing from your resume:</p>
+      <div class="keyword-grid">
+        <div class="keyword-col">
+          <h4 class="keyword-col-title text-green">Present in Resume ({{ result.keyword_analysis.present_keywords|length }})</h4>
+          <div class="skills-list">
+            {% for kw in result.keyword_analysis.present_keywords %}
+              <span class="skill-tag kw-present">{{ kw }}</span>
+            {% empty %}
+              <p class="empty-state">None detected.</p>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="keyword-col">
+          <h4 class="keyword-col-title text-red">Missing from Resume ({{ result.keyword_analysis.missing_keywords|length }})</h4>
+          <div class="skills-list">
+            {% for kw in result.keyword_analysis.missing_keywords %}
+              <span class="skill-tag kw-missing">{{ kw }}</span>
+            {% empty %}
+              <p class="empty-state success-msg">All key terms found!</p>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHAP Explainability -->
+    <div class="card full-width">
+      <div class="card-header">
+        <span class="card-icon">🔬</span>
+        <h2>AI Explanation (SHAP)</h2>
+        <span class="badge">Why this score?</span>
+      </div>
+      <p class="card-desc">Terms that contributed most (green = boosts score, red = hurts score):</p>
+      <div class="shap-grid">
+        <div class="shap-col">
+          <h4 class="keyword-col-title text-green">Positive Factors</h4>
+          {% for f in result.shap_explanation.positive_impact %}
+            <div class="shap-row">
+              <span class="shap-term">{{ f.term }}</span>
+              <div class="shap-bar-wrap"><div class="shap-bar shap-positive" data-impact="{{ f.impact }}"></div></div>
+              <span class="shap-value text-green">+{{ f.impact|floatformat:3 }}</span>
+            </div>
+          {% empty %}
+            <p class="empty-state">No positive factors found.</p>
+          {% endfor %}
+        </div>
+        <div class="shap-col">
+          <h4 class="keyword-col-title text-red">Negative Factors</h4>
+          {% for f in result.shap_explanation.negative_impact %}
+            <div class="shap-row">
+              <span class="shap-term">{{ f.term }}</span>
+              <div class="shap-bar-wrap"><div class="shap-bar shap-negative" data-impact="{{ f.impact }}"></div></div>
+              <span class="shap-value text-red">{{ f.impact|floatformat:3 }}</span>
+            </div>
+          {% empty %}
+            <p class="empty-state">No negative factors found.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Recommendations -->
+    <div class="card full-width">
+      <div class="card-header">
+        <span class="card-icon">💡</span>
+        <h2>Smart Recommendations</h2>
+        <span class="badge">Prioritised by impact</span>
+      </div>
+      <ul class="recommendations-list">
+        {% for rec in result.recommendations %}
+          <li class="rec-item">
+            <span class="rec-num">{{ forloop.counter }}</span>
+            {{ rec }}
+          </li>
+        {% empty %}
+          <li class="empty-state">No recommendations available.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+  </div><!-- /.results-grid -->
+
+  <div class="results-actions">
+    <a href="{% url 'analyzer:upload' %}" class="btn-primary">Analyze Another Resume</a>
+    <a href="{% url 'analyzer:history' %}" class="btn-secondary">View History</a>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/results.js' %}"></script>
+{% endblock %}
