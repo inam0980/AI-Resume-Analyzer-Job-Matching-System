@@ -1,7 +1,7 @@
 import json
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST
 
 from .forms import ResumeUploadForm, JobDescriptionForm
@@ -9,6 +9,12 @@ from .models import Resume, JobDescription, MatchResult
 from .extractor import extract_text
 from .matcher import compute_match
 from .explainer import build_shap_explanation, generate_recommendations
+from .gemini_service import (
+    analyze_resume as gemini_analyze,
+    rewrite_resume_sections,
+    generate_full_rewritten_resume,
+)
+from .pdf_generator import build_resume_pdf, build_analysis_report_pdf
 
 
 @login_required
@@ -103,6 +109,65 @@ def results_view(request, pk):
 def history_view(request):
     results = MatchResult.objects.filter(user=request.user).select_related('resume', 'job_description')
     return render(request, 'analyzer/history.html', {'results': results})
+
+
+@login_required
+@require_POST
+def ai_analyze_view(request, pk):
+    """Run Gemini AI analysis on an existing match result and persist it."""
+    result = get_object_or_404(MatchResult, pk=pk, user=request.user)
+    data = gemini_analyze(result.resume.extracted_text, result.job_description.text)
+    if 'error' not in data:
+        result.ai_analysis = data
+        result.save(update_fields=['ai_analysis'])
+    return JsonResponse(data)
+
+
+@login_required
+@require_POST
+def ai_rewrite_view(request, pk):
+    """Generate a full AI-rewritten resume tailored to the JD."""
+    result = get_object_or_404(MatchResult, pk=pk, user=request.user)
+    candidate_name = request.user.get_full_name() or request.user.username
+    data = generate_full_rewritten_resume(
+        result.resume.extracted_text, result.job_description.text, candidate_name
+    )
+    if 'error' not in data:
+        result.ai_rewritten = data
+        result.save(update_fields=['ai_rewritten'])
+    return JsonResponse(data)
+
+
+@login_required
+def export_resume_pdf(request, pk):
+    """Export the AI-rewritten resume as a styled PDF."""
+    result = get_object_or_404(MatchResult, pk=pk, user=request.user)
+    data = result.ai_rewritten
+    if not data:
+        candidate_name = request.user.get_full_name() or request.user.username
+        data = generate_full_rewritten_resume(
+            result.resume.extracted_text, result.job_description.text, candidate_name
+        )
+        if 'error' in data:
+            return JsonResponse(data, status=400)
+        result.ai_rewritten = data
+        result.save(update_fields=['ai_rewritten'])
+
+    pdf_bytes = build_resume_pdf(data)
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    safe_name = (data.get('name') or 'resume').replace(' ', '_')
+    response['Content-Disposition'] = f'attachment; filename="{safe_name}_tailored.pdf"'
+    return response
+
+
+@login_required
+def export_report_pdf(request, pk):
+    """Export the analysis report as a PDF."""
+    result = get_object_or_404(MatchResult, pk=pk, user=request.user)
+    pdf_bytes = build_analysis_report_pdf(result, result.ai_analysis or None)
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="analysis_report_{result.pk}.pdf"'
+    return response
 
 
 @login_required

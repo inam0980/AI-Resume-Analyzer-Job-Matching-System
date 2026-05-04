@@ -42,6 +42,9 @@ class MatchResult(models.Model):
     matched_by_group = models.JSONField(default=dict)
     missing_by_group = models.JSONField(default=dict)
     critical_missing = models.JSONField(default=list)
+    # Gemini AI analysis (lazily populated via /ai-analyze/ endpoint)
+    ai_analysis = models.JSONField(default=dict, blank=True)
+    ai_rewritten = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
