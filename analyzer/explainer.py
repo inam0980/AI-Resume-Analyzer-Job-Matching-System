@@ -9,8 +9,12 @@ This gives per-term contribution scores that explain WHY the match scored as it 
 """
 
 import re
-import shap
 import numpy as np
+
+try:
+    import shap
+except ImportError:
+    shap = None
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 
@@ -48,8 +52,13 @@ def build_shap_explanation(
         clf.fit(X, labels)
 
         resume_vec = vec.transform([resume_text])
-        explainer  = shap.LinearExplainer(clf, X, feature_perturbation='interventional')
-        shap_vals  = explainer.shap_values(resume_vec)
+        if shap is not None:
+            explainer  = shap.LinearExplainer(clf, X, feature_perturbation='interventional')
+            shap_vals  = explainer.shap_values(resume_vec)
+        else:
+            # Exact linear SHAP (interventional): coef * (x - E[x])
+            mean_x    = np.asarray(X.mean(axis=0))
+            shap_vals = clf.coef_ * (resume_vec.toarray() - mean_x)
 
         feature_names = vec.get_feature_names_out()
         # shap_vals shape: (n_samples, n_features) or list thereof

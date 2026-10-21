@@ -11,10 +11,22 @@ Pipeline:
 """
 
 import re
+from functools import lru_cache
+
 import numpy as np
-from sentence_transformers import SentenceTransformer
-import faiss
 from sklearn.feature_extraction.text import TfidfVectorizer
+
+# Heavy libs are optional: on small hosts (e.g. PythonAnywhere free tier) torch
+# doesn't fit, so we fall back to Gemini embeddings and plain numpy.
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    SentenceTransformer = None
+
+try:
+    import faiss
+except ImportError:
+    faiss = None
 
 # ── Model registry (lazy-loaded singletons) ──────────────────────────────────
 
@@ -25,21 +37,50 @@ MODEL_NAMES = {
     'multiqa':  'multi-qa-mpnet-base-dot-v1', # fine-tuned for query-doc matching
 }
 
+_GEMINI_EMBED_MODEL = 'models/gemini-embedding-001'
 
-def _load(key: str) -> SentenceTransformer:
+
+def _load(key: str):
     if key not in _models:
         _models[key] = SentenceTransformer(MODEL_NAMES[key])
     return _models[key]
 
 
+@lru_cache(maxsize=64)
+def _gemini_embed(text: str) -> np.ndarray:
+    from . import gemini_service  # configures genai with the API key
+    import google.generativeai as genai
+
+    res = genai.embed_content(model=_GEMINI_EMBED_MODEL, content=text[:8000])
+    emb = np.array([res['embedding']], dtype='float32')
+    return emb / max(np.linalg.norm(emb), 1e-9)
+
+
 def _encode(model_key: str, text: str) -> np.ndarray:
+    if SentenceTransformer is None:
+        return _gemini_embed(text)
     emb = _load(model_key).encode([text], convert_to_numpy=True, normalize_embeddings=True)
     return emb.astype('float32')
+
+
+def _tfidf_similarity(a: str, b: str) -> float:
+    tfidf = TfidfVectorizer(stop_words='english', ngram_range=(1, 2)).fit_transform([a, b])
+    return float((tfidf[0] @ tfidf[1].T).toarray()[0][0])
+
+
+def _text_similarity(model_key: str, a: str, b: str) -> float:
+    """Embedding similarity in [0, 1]; TF-IDF cosine if no embedder is reachable."""
+    try:
+        return _faiss_score(_encode(model_key, a), _encode(model_key, b))
+    except Exception:
+        return _tfidf_similarity(a, b)
 
 
 # ── FAISS inner-product similarity ───────────────────────────────────────────
 
 def _faiss_score(a: np.ndarray, b: np.ndarray) -> float:
+    if faiss is None:
+        return float(np.clip(a[0] @ b[0], 0.0, 1.0))
     dim = a.shape[1]
     idx = faiss.IndexFlatIP(dim)
     idx.add(b)
@@ -232,9 +273,7 @@ def semantic_score(resume_text: str, jd_text: str) -> dict:
     """
     scores = {}
     for key in MODEL_NAMES:
-        r_emb = _encode(key, resume_text)
-        j_emb = _encode(key, jd_text)
-        scores[key] = _faiss_score(r_emb, j_emb)
+        scores[key] = _text_similarity(key, resume_text, jd_text)
 
     # mpnet weight 0.55, multiqa weight 0.45
     ensemble = scores['mpnet'] * 0.55 + scores['multiqa'] * 0.45
@@ -253,9 +292,7 @@ def section_semantic_scores(resume_sections: dict, jd_text: str) -> dict:
         if not text or text == resume_sections.get('full', ''):
             results[sec] = None
             continue
-        r_emb = _encode('mpnet', text)
-        j_emb = _encode('mpnet', jd_text)
-        results[sec] = round(_faiss_score(r_emb, j_emb) * 100, 1)
+        results[sec] = round(_text_similarity('mpnet', text, jd_text) * 100, 1)
     return results
 
 
