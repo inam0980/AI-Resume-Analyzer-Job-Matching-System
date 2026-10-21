@@ -4,25 +4,41 @@ import os
 import re
 from pathlib import Path
 
-import google.generativeai as genai
 from dotenv import load_dotenv
+from google import genai
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
 _API_KEY = os.getenv('GEMINI_API_KEY', '').strip()
 _MODEL_NAME = 'gemini-2.5-flash'
+_EMBED_MODEL = 'gemini-embedding-001'
 
-if _API_KEY and _API_KEY != 'PASTE_YOUR_NEW_KEY_HERE':
-    genai.configure(api_key=_API_KEY)
+_client = None
 
 
 def _is_configured() -> bool:
     return bool(_API_KEY) and _API_KEY != 'PASTE_YOUR_NEW_KEY_HERE'
 
 
-def _model():
-    return genai.GenerativeModel(_MODEL_NAME)
+def _get_client() -> genai.Client:
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=_API_KEY)
+    return _client
+
+
+def _generate(prompt: str) -> str:
+    response = _get_client().models.generate_content(model=_MODEL_NAME, contents=prompt)
+    return response.text or ''
+
+
+def embed_text(text: str) -> list:
+    """Return the Gemini embedding vector for text."""
+    if not _is_configured():
+        raise RuntimeError('Gemini API key not configured.')
+    res = _get_client().models.embed_content(model=_EMBED_MODEL, contents=text)
+    return res.embeddings[0].values
 
 
 def _extract_json(text: str):
@@ -79,10 +95,10 @@ JOB DESCRIPTION:
 Return ONLY the JSON. No prose, no markdown."""
 
     try:
-        response = _model().generate_content(prompt)
-        data = _extract_json(response.text)
+        text = _generate(prompt)
+        data = _extract_json(text)
         if not data:
-            return {'error': 'Could not parse AI response', 'raw': response.text[:500]}
+            return {'error': 'Could not parse AI response', 'raw': text[:500]}
         return data
     except Exception as e:
         return {'error': f'Gemini API error: {str(e)}'}
@@ -119,10 +135,10 @@ TARGET JOB DESCRIPTION:
 Return ONLY the JSON."""
 
     try:
-        response = _model().generate_content(prompt)
-        data = _extract_json(response.text)
+        text = _generate(prompt)
+        data = _extract_json(text)
         if not data:
-            return {'error': 'Could not parse rewrite response', 'raw': response.text[:500]}
+            return {'error': 'Could not parse rewrite response', 'raw': text[:500]}
         return data
     except Exception as e:
         return {'error': f'Gemini API error: {str(e)}'}
@@ -164,10 +180,10 @@ TARGET JOB DESCRIPTION:
 Return ONLY the JSON. Do not invent employers or degrees that are not in the original."""
 
     try:
-        response = _model().generate_content(prompt)
-        data = _extract_json(response.text)
+        text = _generate(prompt)
+        data = _extract_json(text)
         if not data:
-            return {'error': 'Could not parse rewrite response', 'raw': response.text[:500]}
+            return {'error': 'Could not parse rewrite response', 'raw': text[:500]}
         return data
     except Exception as e:
         return {'error': f'Gemini API error: {str(e)}'}

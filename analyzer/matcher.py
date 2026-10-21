@@ -37,9 +37,6 @@ MODEL_NAMES = {
     'multiqa':  'multi-qa-mpnet-base-dot-v1', # fine-tuned for query-doc matching
 }
 
-_GEMINI_EMBED_MODEL = 'models/gemini-embedding-001'
-
-
 def _load(key: str):
     if key not in _models:
         _models[key] = SentenceTransformer(MODEL_NAMES[key])
@@ -48,11 +45,9 @@ def _load(key: str):
 
 @lru_cache(maxsize=64)
 def _gemini_embed(text: str) -> np.ndarray:
-    from . import gemini_service  # configures genai with the API key
-    import google.generativeai as genai
+    from .gemini_service import embed_text
 
-    res = genai.embed_content(model=_GEMINI_EMBED_MODEL, content=text[:8000])
-    emb = np.array([res['embedding']], dtype='float32')
+    emb = np.array([embed_text(text[:8000])], dtype='float32')
     return emb / max(np.linalg.norm(emb), 1e-9)
 
 
