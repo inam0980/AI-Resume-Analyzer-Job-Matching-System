@@ -11,12 +11,7 @@ This gives per-term contribution scores that explain WHY the match scored as it 
 import re
 import numpy as np
 
-try:
-    import shap
-except ImportError:
-    shap = None
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
+from .textlite import TfidfVectorizer, LogisticRegression
 
 
 # ── SHAP explainability ───────────────────────────────────────────────────────
@@ -52,13 +47,8 @@ def build_shap_explanation(
         clf.fit(X, labels)
 
         resume_vec = vec.transform([resume_text])
-        if shap is not None:
-            explainer  = shap.LinearExplainer(clf, X, feature_perturbation='interventional')
-            shap_vals  = explainer.shap_values(resume_vec)
-        else:
-            # Exact linear SHAP (interventional): coef * (x - E[x])
-            mean_x    = np.asarray(X.mean(axis=0))
-            shap_vals = clf.coef_ * (resume_vec.toarray() - mean_x)
+        # Exact SHAP values for a linear model (interventional): coef * (x - E[x])
+        shap_vals = clf.coef_ * (resume_vec - X.mean(axis=0))
 
         feature_names = vec.get_feature_names_out()
         # shap_vals shape: (n_samples, n_features) or list thereof

@@ -14,7 +14,8 @@ import re
 from functools import lru_cache
 
 import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
+
+from .textlite import TfidfVectorizer
 
 # Heavy libs are optional: on small hosts (e.g. PythonAnywhere free tier) torch
 # doesn't fit, so we fall back to Gemini embeddings and plain numpy.
@@ -60,7 +61,7 @@ def _encode(model_key: str, text: str) -> np.ndarray:
 
 def _tfidf_similarity(a: str, b: str) -> float:
     tfidf = TfidfVectorizer(stop_words='english', ngram_range=(1, 2)).fit_transform([a, b])
-    return float((tfidf[0] @ tfidf[1].T).toarray()[0][0])
+    return float(tfidf[0] @ tfidf[1])
 
 
 def _text_similarity(model_key: str, a: str, b: str) -> float:
@@ -235,8 +236,8 @@ def keyword_gap_analysis(resume_text: str, jd_text: str) -> dict:
         )
         tfidf = vec.fit_transform(corpus)
         feature_names = vec.get_feature_names_out()
-        jd_scores  = tfidf[0].toarray()[0]
-        res_scores = tfidf[1].toarray()[0]
+        jd_scores  = tfidf[0]
+        res_scores = tfidf[1]
 
         # Top JD keywords by TF-IDF weight
         top_idx = np.argsort(jd_scores)[::-1][:40]
